@@ -1,14 +1,11 @@
 import pytest
-from app import app
-from databasy import insert_user, delete_user
-import json
+from databasy import insert_user, delete_user , delete_all_users , get_users , get_user_by_id , update_user
 
-# From Flask documentation https://flask.palletsprojects.com/en/3.0.x/tutorial/tests/
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    client = app.test_client()
-
+def create_fresh_db():
+    delete_all_users()
+    global inserted_user_1 
+    global inserted_user_2
+    global inserted_user_3 
     user_1 = {
         'name' : 'Alice Johnson',
         'email' : 'alice.j@example.com',
@@ -27,44 +24,31 @@ def client():
     }
     inserted_user_2 = insert_user(user_2)
 
-    user_3 = {
-        'name' : 'Charlie Brown',
-        'email' : 'charlie.b@example.com',
-        'phone' : '555-123-4567',
-        'address' : '789 Pine Blvd, Villagetown',
-        'country' : 'UK'
-    }
-    inserted_user_3 = insert_user(user_3)
+@pytest.fixture
+def test_db():
+    create_fresh_db()
+    yield test_db
+    delete_all_users()
 
-    yield client
+def test_get_users(test_db):
+    users = get_users()
+    assert isinstance(users, list)
+    print(users)
+    assert len(users) == 2
+    assert all(isinstance(user, dict) for user in users)
+    assert inserted_user_1 == users[0]
+    assert inserted_user_2 == users[1]
 
-    delete_user(inserted_user_1['user_id'])
-    delete_user(inserted_user_2['user_id'])
-    delete_user(inserted_user_3['user_id'])
+def test_get_user(test_db):
+    user = get_user_by_id(2)
+    assert isinstance(user, dict)
+    assert inserted_user_2 == user
+    # Non existing user
+    user = get_user_by_id(3)
+    assert isinstance(user, dict)
+    assert user == {}
 
-def test_get_users(client):
-    response = client.get('/api/users')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, list)
-    assert len(data) == 3
-
-def test_get_user(client):
-    user_id = 1
-    response = client.get(f'/api/users/{user_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, dict)
-    assert 'user_id' in data
-    # Check when getting non existent user
-    user_id = 5
-    response = client.get(f'/api/users/{user_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, dict)
-    assert 'user_id' not in data
-
-def test_add_user(client):
+def test_add_user(test_db):
     new_user = {
         'name' : 'John Doe',
         'email' : 'john.d@example.com',
@@ -72,58 +56,39 @@ def test_add_user(client):
         'address' : '123 Grape St, Grapeville',
         'country' : 'USA'
     }
-    response = client.post('/api/users/add',
-                           data=json.dumps(new_user),
-                           content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, dict)
-    assert 'user_id' in data
+    added_user = insert_user(new_user)
+    assert isinstance(new_user, dict)
+    new_user['user_id'] = 3
+    assert added_user == new_user
 
-def test_update_user(client):
-    updated_user = {
-        'user_id' : 4,
+def test_update_user(test_db):
+    # Add new user
+    new_user = {
         'name' : 'John Doe',
         'email' : 'john.d@example.com',
         'phone' : '789-456-1230',
-        'address' : '123 Melon St, Melonville',
-        'country' : 'Canada'
+        'address' : '123 Grape St, Grapeville',
+        'country' : 'USA'
     }
-    response = client.put('/api/users/update',
-                          data=json.dumps(updated_user),
-                          content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, dict)
-    assert 'user_id' in data
-    # Check when updating non existent user
-    updated_user = {
-        'user_id' : 10,
-        'name' : 'John Doe',
-        'email' : 'john.d@example.com',
-        'phone' : '789-456-1230',
-        'address' : '123 Melon St, Melonville',
-        'country' : 'Canada'
-    }
-    response = client.put('/api/users/update',
-                          data=json.dumps(updated_user),
-                          content_type='application/json')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert isinstance(data, dict)
-    assert 'user_id' not in data
+    added_user = insert_user(new_user)
+    assert isinstance(new_user, dict)
+    new_user['user_id'] = 3
+    assert added_user == new_user
+    # Update user
+    added_user['address'] = '123 Melon St, Melonville'
+    updated_user = update_user(added_user)
+    assert isinstance(new_user, dict)
+    assert added_user == updated_user
+    # Non existing user
+    added_user['user_id'] = 4
+    updated_user = update_user(added_user)
+    assert isinstance(new_user, dict)
+    assert updated_user == {}
 
-def test_delete_user(client):
-    user_id = 4
-    response = client.delete(f'/api/users/delete/{user_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert 'User deleted successfully' == data['status']
-    # Check when deleting non existent user
-    user_id = 10
-    response = client.delete(f'/api/users/delete/{user_id}')
-    assert response.status_code == 200
-    data = json.loads(response.data)
-    assert 'Cannot delete user' == data['status']
-
-
+def test_delete_user(test_db):
+    user_id = 1
+    msg = delete_user(user_id)
+    assert 'User deleted successfully' == msg['status']
+    user_id = 3
+    msg = delete_user(user_id)
+    assert 'Cannot delete user' == msg['status']

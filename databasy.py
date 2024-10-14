@@ -120,3 +120,19 @@ def delete_user(user_id):
     finally:
         conn.close()
     return message
+
+def delete_all_users():
+    message = {}
+    try:
+        conn : sqlite3.Connection = connect_to_db()
+        cur : sqlite3.Cursor = conn.cursor()
+        cur.execute("DELETE FROM users")
+        conn.commit()
+        message["status"] = "All users deleted"
+    except Exception as e:
+        message["status"] = "Error deleting all users"
+        print(e)
+        conn.rollback()
+    finally:
+        conn.close()
+    return message
