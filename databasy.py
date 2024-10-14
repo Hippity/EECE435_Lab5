@@ -88,6 +88,8 @@ def update_user(user):
     try:
         conn : sqlite3.Connection = connect_to_db()
         cur : sqlite3.Cursor = conn.cursor()
+        if get_user_by_id(user['user_id']) == {}:
+            raise Exception("User not found in update")
         cur.execute("UPDATE users SET name = ?, email = ?, phone =?, address = ?, country = ? WHERE user_id =?"
                     ,(user['name'],user['email'],user['phone'],user['address'],user['country'],user["user_id"],))
 
@@ -95,7 +97,7 @@ def update_user(user):
         updated_user = get_user_by_id(user["user_id"])
     except Exception as e:
         updated_user = {}
-        print(e)
+        print(e,'jere')
         conn.rollback()
     finally:
         conn.close()
@@ -105,7 +107,10 @@ def delete_user(user_id):
     message = {}
     try:
         conn : sqlite3.Connection = connect_to_db()
-        conn.execute("DELETE from users WHERE user_id = ?",(user_id,))
+        cur : sqlite3.Cursor = conn.cursor()
+        if get_user_by_id(user_id) == {}:
+            raise Exception("User not found in delete")
+        cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
         conn.commit()
         message["status"] = "User deleted successfully"
     except Exception as e:
